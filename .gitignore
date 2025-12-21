@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# Build and Distribution
+build/
+dist/
+*.spec
+
+# Logs
+logs/
+*.log
+
+# Project specific
+Zapret/bin/
+Zapret/build/
+Zapret/dist/
+Zapret/zapret_settings.json
+
+# User specific config (APPDATA used in code, but just in case)
+config.json

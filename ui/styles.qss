@@ -1,0 +1,174 @@
+/* Modern Premium Dark Theme */
+QMainWindow {
+    background-color: #0F111A;
+}
+
+/* Header */
+#header {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1A1D2E, stop:1 #131524);
+    border-bottom: 1px solid #2A2E45;
+    min-height: 50px;
+}
+
+#title {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+#settings_btn {
+    background: transparent;
+    border-radius: 10px;
+    padding: 8px;
+    color: #8F95B2;
+}
+
+#settings_btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #FFFFFF;
+}
+
+/* Strategy Card */
+#strategy_card {
+    background-color: #161929;
+    border: 1px solid #23273D;
+    border-radius: 16px;
+    margin: 10px;
+}
+
+#card_title {
+    color: #8F95B2;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+
+QComboBox {
+    background-color: #1F2338;
+    border: 1px solid #2D3352;
+    border-radius: 10px;
+    padding: 6px 12px;
+    color: #FFFFFF;
+    font-size: 13px;
+}
+
+QComboBox:hover {
+    border-color: #3F4773;
+    background-color: #252A45;
+}
+
+QComboBox::drop-down {
+    border: none;
+    padding-right: 15px;
+}
+
+/* Main Toggle Button */
+#toggle_btn {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4D7FFF, stop:1 #335CCF);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+#toggle_btn:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #5D8BFF, stop:1 #436CDF);
+}
+
+#toggle_btn:pressed {
+    background: #2D52B9;
+}
+
+#toggle_btn[active="true"] {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FF4D4D, stop:1 #CF3333);
+}
+
+/* Secondary Buttons */
+QPushButton#secondary_btn {
+    background-color: #1F2338;
+    border: 1px solid #2D3352;
+    color: #FFFFFF;
+    border-radius: 10px;
+    padding: 8px;
+    font-weight: 600;
+}
+
+QPushButton#secondary_btn:hover {
+    background-color: #2D3352;
+    border-color: #3F4773;
+}
+
+/* Status Panel */
+#status_panel {
+    background-color: #161929;
+    border-radius: 12px;
+    border: 1px solid #23273D;
+}
+
+#status_dot {
+    background-color: #3B405A;
+    border-radius: 3px;
+}
+
+#status_dot[status="active"] {
+    background-color: #00C853;
+}
+
+/* Log Terminal */
+QPlainTextEdit {
+    background-color: #0A0C14;
+    border: 1px solid #1F2338;
+    border-radius: 12px;
+    color: #7A819F;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    padding: 6px;
+}
+
+/* ScrollBar */
+QScrollBar:vertical {
+    border: none;
+    background: transparent;
+    width: 8px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #2D3352;
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #3F4773;
+}
+
+/* Dialogs */
+QDialog {
+    background-color: #0F111A;
+}
+
+#card {
+    background-color: #161929;
+    border: 1px solid #23273D;
+    border-radius: 12px;
+}
+
+#link_btn {
+    background-color: transparent;
+    color: #4D7FFF;
+    border: none;
+    text-align: left;
+    padding: 5px;
+    font-weight: 600;
+}
+
+#link_btn:hover {
+    color: #7AA2FF;
+    text-decoration: underline;
+}

@@ -1,0 +1,13 @@
+{
+  "last_strategy": "ALT6",
+  "health_results": {
+    "0": {
+      "youtube": true,
+      "discord": true
+    },
+    "9": {
+      "youtube": true,
+      "discord": true
+    }
+  }
+}
