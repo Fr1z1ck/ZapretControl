@@ -117,31 +117,19 @@ goto MENU
 :GIT_RELEASE
 cls
 echo [+] Starting Release Mode...
+timeout /t 1 >nul
+
 echo [+] Step 1: Checking Git...
 git --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Git is not installed or not in PATH.
-    pause
-    goto MENU
-)
+if errorlevel 1 goto ERR_GIT
 
 echo [+] Step 2: Checking GitHub CLI (gh)...
 gh --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] GitHub CLI (gh) is not installed.
-    echo Please install it from https://cli.github.com/
-    pause
-    goto MENU
-)
+if errorlevel 1 goto ERR_GH
 
 echo [+] Step 3: Checking GitHub Authorization...
 gh auth status >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] You are not logged into GitHub CLI.
-    echo Please run 'gh auth login' in a separate terminal.
-    pause
-    goto MENU
-)
+if errorlevel 1 goto ERR_AUTH
 
 echo [+] Step 4: Fetching tags...
 echo --------------------------------------------------
@@ -151,85 +139,106 @@ echo:
 
 set "rtag="
 set /p rtag="Enter version tag (e.g. v1.1.0) or press Enter to cancel: "
-if "!rtag!"=="" (
-    echo [+] Release cancelled.
-    pause
-    goto MENU
-)
+if "%rtag%"=="" goto CANCEL_RELEASE
 
-echo [+] Step 5: Checking if tag '!rtag!' already exists...
-git rev-parse "!rtag!" >nul 2>&1
-if errorlevel 1 (
-    echo [+] Tag '!rtag!' is available.
-) else (
-    echo [ERROR] Tag '!rtag!' already exists. Please use a new version.
-    pause
-    goto MENU
-)
+echo [+] Step 5: Checking if tag '%rtag%' already exists...
+git rev-parse "%rtag%" >nul 2>&1
+if not errorlevel 1 goto ERR_TAG_EXISTS
 
 echo [+] Step 6: Building EXE...
-if not exist "venv" (
-    echo [ERROR] Virtual environment (venv) not found.
-    pause
-    goto MENU
-)
+if not exist "venv" goto ERR_VENV
 
-:: Ensure we are in the right environment
 call venv\Scripts\activate
 python -m PyInstaller --clean ZapretControl.spec
-if errorlevel 1 (
-    echo [ERROR] PyInstaller build failed.
-    pause
-    goto MENU
-)
+if errorlevel 1 goto ERR_BUILD
 
-if not exist "dist\ZapretControl.exe" (
-    echo [ERROR] Build succeeded but ZapretControl.exe not found in dist/
-    pause
-    goto MENU
-)
+if not exist "dist\ZapretControl.exe" goto ERR_NO_EXE
 
 echo [+] Step 7: Committing and Tagging...
 git add .
 
-:: Check if user identity is set
 git config user.email >nul 2>&1
-if errorlevel 1 (
-    echo [WARNING] Git user identity not set.
-    set /p uemail="Enter your GitHub email: "
-    set /p uname="Enter your GitHub username: "
-    if not "!uemail!"=="" git config user.email "!uemail!"
-    if not "!uname!"=="" git config user.name "!uname!"
-)
+if errorlevel 1 call :SET_IDENTITY
 
-:: Ignore error if nothing to commit
-git commit -m "Release !rtag!" >nul 2>&1
-git tag -a "!rtag!" -m "Version !rtag!"
-if errorlevel 1 (
-    echo [ERROR] Failed to create git tag. Maybe it already exists locally?
-    pause
-    goto MENU
-)
+git commit -m "Release %rtag%" >nul 2>&1
+git tag -a "%rtag%" -m "Version %rtag%"
+if errorlevel 1 goto ERR_TAG_FAIL
 
 echo [+] Step 8: Pushing to GitHub...
 git push origin main --tags
-if errorlevel 1 (
-    echo [ERROR] Failed to push to GitHub. Check your internet connection or permissions.
-    pause
-    goto MENU
-)
+if errorlevel 1 goto ERR_PUSH
 
 echo [+] Step 9: Creating GitHub Release and uploading EXE...
-gh release create "!rtag!" "dist\ZapretControl.exe" --title "Release !rtag!" --notes "Automated release !rtag!"
-if errorlevel 1 (
-    echo [ERROR] Failed to create GitHub release. 
-    echo You might need to delete the tag manually: git tag -d !rtag!
-) else (
-    echo [+] SUCCESS: Release !rtag! created and EXE uploaded.
-)
+gh release create "%rtag%" "dist\ZapretControl.exe" --title "Release %rtag%" --notes "Automated release %rtag%"
+if errorlevel 1 goto ERR_RELEASE
 
+echo [+] SUCCESS: Release %rtag% created and EXE uploaded.
 pause
 goto MENU
+
+:ERR_GIT
+echo [ERROR] Git is not installed or not in PATH.
+pause
+goto MENU
+
+:ERR_GH
+echo [ERROR] GitHub CLI (gh) is not installed.
+pause
+goto MENU
+
+:ERR_AUTH
+echo [ERROR] You are not logged into GitHub CLI.
+echo Please run 'gh auth login' in your terminal and follow instructions.
+pause
+goto MENU
+
+:CANCEL_RELEASE
+echo [+] Release cancelled.
+pause
+goto MENU
+
+:ERR_TAG_EXISTS
+echo [ERROR] Tag '%rtag%' already exists.
+pause
+goto MENU
+
+:ERR_VENV
+echo [ERROR] Virtual environment (venv) not found.
+pause
+goto MENU
+
+:ERR_BUILD
+echo [ERROR] PyInstaller build failed.
+pause
+goto MENU
+
+:ERR_NO_EXE
+echo [ERROR] ZapretControl.exe not found in dist/
+pause
+goto MENU
+
+:ERR_TAG_FAIL
+echo [ERROR] Failed to create git tag.
+pause
+goto MENU
+
+:ERR_PUSH
+echo [ERROR] Failed to push to GitHub.
+pause
+goto MENU
+
+:ERR_RELEASE
+echo [ERROR] Failed to create GitHub release.
+pause
+goto MENU
+
+:SET_IDENTITY
+echo [WARNING] Git user identity not set.
+set /p uemail="Enter your GitHub email: "
+set /p uname="Enter your GitHub username: "
+if not "%uemail%"=="" git config user.email "%uemail%"
+if not "%uname%"=="" git config user.name "%uname%"
+exit /b
 
 :CLEANUP
 cls
