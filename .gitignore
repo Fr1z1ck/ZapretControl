@@ -16,6 +16,11 @@ dist/
 logs/
 *.log
 
+# Backups and temporary files
+*.bak
+*.tmp
+*.old
+
 # Project specific
 Zapret/bin/
 Zapret/build/

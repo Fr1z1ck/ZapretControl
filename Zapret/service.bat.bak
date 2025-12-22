@@ -82,18 +82,13 @@ if !errorlevel!==0 (
 
 call :test_service zapret
 call :test_service WinDivert
-
-set "BIN_PATH=%~dp0bin\"
-if not exist "%BIN_PATH%\*.sys" (
-    call :PrintRed "WinDivert64.sys file NOT found."
-)
 echo:
 
 tasklist /FI "IMAGENAME eq winws.exe" | find /I "winws.exe" > nul
 if !errorlevel!==0 (
-    call :PrintGreen "Bypass (winws.exe) is RUNNING."
+    call :PrintGreen "Bypass (winws.exe) is ACTIVE"
 ) else (
-    call :PrintRed "Bypass (winws.exe) is NOT running."
+    call :PrintRed "Bypass (winws.exe) NOT FOUND"
 )
 
 pause
@@ -305,7 +300,7 @@ set "GITHUB_RELEASE_URL=https://github.com/Flowseal/zapret-discord-youtube/relea
 set "GITHUB_DOWNLOAD_URL=https://github.com/Flowseal/zapret-discord-youtube/releases/latest/download/zapret-discord-youtube-"
 
 :: Get the latest version from GitHub
-for /f "delims=" %%A in ('powershell -command "(Invoke-WebRequest -Uri \"%GITHUB_VERSION_URL%\" -Headers @{\"Cache-Control\"=\"no-cache\"} -UseBasicParsing -TimeoutSec 5).Content.Trim()" 2^>nul') do set "GITHUB_VERSION=%%A"
+for /f "delims=" %%A in ('powershell -command "(Invoke-WebRequest -Uri \"%GITHUB_VERSION_URL%\" -Headers @{\"Cache-Control\"=\"no-cache\"} -TimeoutSec 5).Content.Trim()" 2^>nul') do set "GITHUB_VERSION=%%A"
 
 :: Error handling
 if not defined GITHUB_VERSION (
@@ -377,16 +372,6 @@ if !proxyEnabled!==1 (
     call :PrintGreen "Proxy check passed"
 )
 echo:
-
-:: Check netsh
-where netsh >nul 2>nul
-if !errorlevel! neq 0  (
-    call :PrintRed "[X] netsh command not found, check your PATH variable"
-	echo PATH = "%PATH%"
-	echo:
-	pause
-	goto menu
-)
 
 :: TCP timestamps check
 netsh interface tcp show global | findstr /i "timestamps" | findstr /i "enabled" > nul
@@ -463,24 +448,10 @@ if !errorlevel!==0 (
 )
 echo:
 
-:: WinDivert64.sys file
-set "BIN_PATH=%~dp0bin\"
-if not exist "%BIN_PATH%\*.sys" (
-    call :PrintRed "WinDivert64.sys file NOT found."
-)
-echo:
-
 :: VPN
 sc query | findstr /I "VPN" > nul
 if !errorlevel!==0 (
-    for /f "tokens=2 delims=:" %%A in ('sc query ^|^ findstr /I "VPN"') do (
-        if not defined VPN_SERVICES (
-            set "VPN_SERVICES=!VPN_SERVICES!%%A"
-        ) else (
-            set "VPN_SERVICES=!VPN_SERVICES!,%%A"
-        )
-    )
-    call :PrintYellow "[?] VPN services found:!VPN_SERVICES!. Some VPNs can conflict with zapret"
+    call :PrintYellow "[?] Some VPN services found. Some VPNs can conflict with zapret"
     call :PrintYellow "Make sure that all VPNs are disabled"
 ) else (
     call :PrintGreen "VPN check passed"

@@ -3,7 +3,7 @@ import ctypes
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QCheckBox, QFrame, QPlainTextEdit,
                              QSpacerItem, QSizePolicy, QComboBox, QMessageBox, QDialog,
-                             QScrollArea, QGraphicsOpacityEffect)
+                             QScrollArea, QGraphicsOpacityEffect, QProgressBar)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QEvent, QUrl, QSize
 from PySide6.QtGui import QIcon, QColor, QPalette, QDesktopServices, QPixmap, QPainter
 from core.config import config
@@ -40,6 +40,48 @@ class SettingsDialog(QDialog):
         
         autostart_layout.addWidget(self.autostart_cb)
         layout.addWidget(autostart_card)
+
+        # Updates Section
+        updates_card = QFrame()
+        updates_card.setObjectName("card")
+        updates_layout = QVBoxLayout(updates_card)
+        
+        updates_title = QLabel("ОБНОВЛЕНИЕ СТРАТЕГИЙ")
+        updates_title.setStyleSheet("font-weight: bold; color: #888; font-size: 11px;")
+        updates_layout.addWidget(updates_title)
+        
+        self.update_btn = QPushButton("Проверить обновления")
+        self.update_btn.setObjectName("secondary_btn")
+        self.update_btn.setIcon(QIcon(get_resource_path(os.path.join('assets', 'icons', 'activity.svg'))))
+        self.update_btn.clicked.connect(self.on_check_update_clicked)
+        updates_layout.addWidget(self.update_btn)
+        
+        self.update_status_label = QLabel("Последнее обновление: " + (config.get("last_update_hash")[:7] if config.get("last_update_hash") else "неизвестно"))
+        self.update_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        updates_layout.addWidget(self.update_status_label)
+        
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("%p% (%v/%m)")
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #333;
+                border-radius: 4px;
+                text-align: center;
+                height: 15px;
+                background-color: #1a1a1a;
+                color: white;
+                font-size: 10px;
+            }
+            QProgressBar::chunk {
+                background-color: #3d5afe;
+                border-radius: 3px;
+            }
+        """)
+        updates_layout.addWidget(self.progress_bar)
+        
+        layout.addWidget(updates_card)
 
         # Actions Section (Reset Icons)
         actions_card = QFrame()
@@ -132,8 +174,81 @@ class SettingsDialog(QDialog):
         self.parent().update_status()
         QMessageBox.information(self, "Готово", "Иконки статуса сброшены.")
 
-class WorkerThread(QThread):
+    def on_check_update_clicked(self):
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("Проверка...")
+        
+        # Use WorkerThread to check for updates
+        self.check_thread = WorkerThread(self.parent().controller.check_for_updates)
+        self.check_thread.finished.connect(self.on_check_finished)
+        self.check_thread.start()
+
+    def on_check_finished(self, result, error):
+        if error:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось проверить обновления: {error}")
+            self.update_btn.setEnabled(True)
+            self.update_btn.setText("Проверить обновления")
+            return
+
+        has_update, latest_hash = result
+        if has_update:
+            reply = QMessageBox.question(self, "Обновление доступно", 
+                                       f"Доступны новые стратегии.\nХотите скачать их сейчас?",
+                                       QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.update_btn.setText("Загрузка...")
+                self.progress_bar.setVisible(True)
+                self.progress_bar.setValue(0)
+                
+                self.download_thread = UpdateThread(self.parent().controller, latest_hash)
+                self.download_thread.progress.connect(self.on_update_progress)
+                self.download_thread.finished.connect(self.on_update_finished)
+                self.download_thread.start()
+            else:
+                self.update_btn.setEnabled(True)
+                self.update_btn.setText("Проверить обновления")
+        else:
+            QMessageBox.information(self, "Обновлений нет", "У вас установлены актуальные версии стратегий.")
+            self.update_btn.setEnabled(True)
+            self.update_btn.setText("Проверить обновления")
+
+    def on_update_progress(self, current, total, filename):
+        self.progress_bar.setMaximum(total)
+        self.progress_bar.setValue(current)
+        self.update_btn.setText(f"Загрузка: {filename}")
+
+    def on_update_finished(self, success, error):
+        self.update_btn.setEnabled(True)
+        self.update_btn.setText("Проверить обновления")
+        self.progress_bar.setVisible(False)
+        if success:
+            self.update_status_label.setText("Последнее обновление: " + config.get("last_update_hash")[:7])
+            self.parent().update_strategies_ui()
+            QMessageBox.information(self, "Успех", "Стратегии успешно обновлены!")
+        else:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось обновить стратегии: {error}")
+
+class UpdateThread(QThread):
+    progress = Signal(int, int, str)
     finished = Signal(bool, str)
+
+    def __init__(self, controller, latest_hash):
+        super().__init__()
+        self.controller = controller
+        self.latest_hash = latest_hash
+
+    def run(self):
+        try:
+            success = self.controller.update_strategies(self.latest_hash, self.on_progress)
+            self.finished.emit(success, "")
+        except Exception as e:
+            self.finished.emit(False, str(e))
+
+    def on_progress(self, current, total, filename):
+        self.progress.emit(current, total, filename)
+
+class WorkerThread(QThread):
+    finished = Signal(object, str)
 
     def __init__(self, func, *args, **kwargs):
         super().__init__()
@@ -146,7 +261,7 @@ class WorkerThread(QThread):
             result = self.func(*self.args, **self.kwargs)
             self.finished.emit(result, "")
         except Exception as e:
-            self.finished.emit(False, str(e))
+            self.finished.emit(None, str(e))
 
 class HealthCheckThread(QThread):
     progress = Signal(int, int, str)
@@ -222,10 +337,22 @@ class MainWindow(QMainWindow):
         
         self.settings_btn = QPushButton()
         self.settings_btn.setObjectName("settings_btn")
-        self.settings_btn.setFixedSize(32, 32) # Reduced size from 36
+        self.settings_btn.setFixedSize(32, 32)
         self.settings_btn.setCursor(Qt.PointingHandCursor)
-        self.settings_btn.setIcon(QIcon(get_resource_path(os.path.join('assets', 'icons', 'settings.svg'))))
-        self.settings_btn.setIconSize(QSize(16, 16))
+        
+        icon_path = get_resource_path(os.path.join('assets', 'icons', 'settings.svg'))
+        if os.path.exists(icon_path):
+            icon = QIcon(icon_path)
+            if not icon.isNull():
+                self.settings_btn.setIcon(icon)
+                self.settings_btn.setIconSize(QSize(20, 20))
+            else:
+                self.settings_btn.setText("⚙")
+                self.settings_btn.setStyleSheet("font-size: 18px; color: white;")
+        else:
+            self.settings_btn.setText("⚙")
+            self.settings_btn.setStyleSheet("font-size: 18px; color: white;")
+            
         self.settings_btn.clicked.connect(self.show_settings)
         header_layout.addWidget(self.settings_btn)
         
@@ -303,24 +430,6 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(self.status_indicator)
         
         status_layout.addStretch()
-        
-        # Service status icons (Discord/YouTube)
-        self.yt_status_icon = QLabel()
-        self.yt_status_icon.setFixedSize(18, 18) # Smaller icons from 20
-        self.yt_status_icon.setScaledContents(True)
-        self.yt_status_icon.setToolTip("YouTube")
-        self.yt_opacity = QGraphicsOpacityEffect()
-        self.yt_status_icon.setGraphicsEffect(self.yt_opacity)
-        
-        self.dc_status_icon = QLabel()
-        self.dc_status_icon.setFixedSize(18, 18) # Smaller icons from 20
-        self.dc_status_icon.setScaledContents(True)
-        self.dc_status_icon.setToolTip("Discord")
-        self.dc_opacity = QGraphicsOpacityEffect()
-        self.dc_status_icon.setGraphicsEffect(self.dc_opacity)
-        
-        status_layout.addWidget(self.yt_status_icon)
-        status_layout.addWidget(self.dc_status_icon)
         
         self.content_layout.addWidget(status_panel)
 
@@ -482,30 +591,29 @@ class MainWindow(QMainWindow):
         if active:
             self.toggle_btn.setText("ОСТАНОВИТЬ ОБХОД")
             self.toggle_btn.setProperty("active", "true")
-            self.toggle_btn.setIcon(QIcon(get_resource_path(os.path.join('assets', 'icons', 'stop.svg'))))
+            icon_path = get_resource_path(os.path.join('assets', 'icons', 'stop.svg'))
+            icon = QIcon(icon_path)
+            if not icon.isNull():
+                self.toggle_btn.setIcon(icon)
+            else:
+                self.toggle_btn.setText("■ ОСТАНОВИТЬ")
+                
             self.status_indicator.setText("СТАТУС: ЗАПУЩЕНО")
             self.status_indicator.setStyleSheet("color: #00C853; font-weight: 700; font-size: 12px;")
             self.status_dot.setProperty("status", "active")
         else:
             self.toggle_btn.setText("ВКЛЮЧИТЬ ОБХОД")
             self.toggle_btn.setProperty("active", "false")
-            self.toggle_btn.setIcon(QIcon(get_resource_path(os.path.join('assets', 'icons', 'play.svg'))))
+            icon_path = get_resource_path(os.path.join('assets', 'icons', 'play.svg'))
+            icon = QIcon(icon_path)
+            if not icon.isNull():
+                self.toggle_btn.setIcon(icon)
+            else:
+                self.toggle_btn.setText("▶ ВКЛЮЧИТЬ")
+                
             self.status_indicator.setText("СТАТУС: ВЫКЛЮЧЕНО")
             self.status_indicator.setStyleSheet("color: #8F95B2; font-weight: 700; font-size: 12px;")
             self.status_dot.setProperty("status", "off")
-            
-        # Update Service Icons
-        current_strategy = self.controller.strategies[self.controller.current_strategy_index]
-        health = self.controller.health_results.get(current_strategy.name, {"youtube": False, "discord": False})
-        
-        yt_path = get_resource_path(os.path.join('assets', 'icons', 'Youtube.png'))
-        dc_path = get_resource_path(os.path.join('assets', 'icons', 'Discord.png'))
-        
-        self.yt_status_icon.setPixmap(QPixmap(yt_path))
-        self.yt_opacity.setOpacity(1.0 if health.get("youtube") else 0.2)
-        
-        self.dc_status_icon.setPixmap(QPixmap(dc_path))
-        self.dc_opacity.setOpacity(1.0 if health.get("discord") else 0.2)
             
         # Refresh styles to apply property changes
         self.toggle_btn.style().unpolish(self.toggle_btn)

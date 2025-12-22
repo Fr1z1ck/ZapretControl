@@ -19,15 +19,15 @@ QMainWindow {
 }
 
 #settings_btn {
-    background: transparent;
-    border-radius: 10px;
-    padding: 8px;
-    color: #8F95B2;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 2px;
 }
 
 #settings_btn:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #FFFFFF;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Strategy Card */

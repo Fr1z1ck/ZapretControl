@@ -10,6 +10,7 @@ from core.services import get_services, get_strategies
 from core.config import config
 from utils.logger import logger
 from utils.paths import get_resource_path
+from utils.updater import updater
 
 class AppController:
     def __init__(self, base_path):
@@ -74,6 +75,16 @@ class AppController:
             self.is_active = False
             return True
         return False
+
+    def check_for_updates(self):
+        return updater.check_for_updates()
+
+    def update_strategies(self, latest_hash, progress_callback=None):
+        success = updater.update_strategies(latest_hash, progress_callback)
+        if success:
+            # Reload strategies after update
+            self.strategies = get_strategies(self.zapret_path)
+        return success
 
     def get_status(self):
         # Double check if process is actually running
