@@ -105,25 +105,39 @@ class AppUpdater:
 
     def _create_updater_script(self, download_path, is_frozen):
         """Creates a batch script to replace files and restart the app."""
-        app_path = os.path.abspath(sys.argv[0])
+        # Use sys.executable to get the real path to the EXE
+        app_path = os.path.abspath(sys.executable if is_frozen else sys.argv[0])
+        app_name = os.path.basename(app_path)
         script_path = os.path.join(tempfile.gettempdir(), "zapret_updater.bat")
+        
+        logger.info(f"Creating updater script. App path: {app_path}, Download path: {download_path}")
         
         with open(script_path, "w", encoding="cp1251") as f:
             f.write("@echo off\n")
             f.write("title ZapretControl Updater\n")
+            f.write("echo ==================================================\n")
+            f.write("echo             ZapretControl Auto-Updater\n")
+            f.write("echo ==================================================\n")
+            f.write("echo.\n")
             f.write("echo Waiting for application to exit...\n")
-            f.write("timeout /t 2 /nobreak > nul\n")
+            f.write("timeout /t 3 /nobreak > nul\n")
+            
+            # Force kill the process just in case
+            f.write(f'taskkill /F /IM "{app_name}" /T > nul 2>&1\n')
             
             if is_frozen and download_path.endswith(".exe"):
-                # Replace the EXE with a retry loop
+                f.write("echo Updating executable...\n")
                 f.write(":retry_move\n")
-                f.write(f'move /y "{download_path}" "{app_path}" > nul 2>&1\n')
+                # Use copy /y instead of move for cross-volume compatibility, then delete source
+                f.write(f'copy /y "{download_path}" "{app_path}" > nul\n')
                 f.write("if errorlevel 1 (\n")
-                f.write("    echo File is still locked, retrying in 1 second...\n")
-                f.write("    timeout /t 1 /nobreak > nul\n")
+                f.write("    echo [!] File is locked or access denied. Retrying in 2 seconds...\n")
+                f.write("    timeout /t 2 /nobreak > nul\n")
                 f.write("    goto retry_move\n")
                 f.write(")\n")
-                f.write("echo Update successful! Starting application...\n")
+                f.write("echo [OK] Update successful!\n")
+                f.write(f'del /f /q "{download_path}" > nul 2>&1\n')
+                f.write("echo Starting new version...\n")
                 f.write(f'start "" "{app_path}"\n')
             else:
                 # For source code (ZIP)
@@ -135,11 +149,13 @@ class AppUpdater:
                 f.write("echo --------------------------------------------------\n")
                 f.write("pause\n")
             
+            f.write("echo Done! Cleaning up...\n")
             f.write("del %0\n")
         
         # Run the script and exit
+        logger.info(f"Launching updater script: {script_path}")
         subprocess.Popen([script_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
-        os._exit(0) # Use os._exit to force immediate exit without cleanup hooks that might delay closing
+        os._exit(0)
 
 class StrategyUpdater:
     def __init__(self):
