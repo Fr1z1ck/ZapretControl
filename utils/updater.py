@@ -106,30 +106,40 @@ class AppUpdater:
     def _create_updater_script(self, download_path, is_frozen):
         """Creates a batch script to replace files and restart the app."""
         app_path = os.path.abspath(sys.argv[0])
-        app_dir = os.path.dirname(app_path)
         script_path = os.path.join(tempfile.gettempdir(), "zapret_updater.bat")
         
         with open(script_path, "w", encoding="cp1251") as f:
             f.write("@echo off\n")
-            f.write("timeout /t 2 /nobreak > nul\n") # Wait for app to close
+            f.write("title ZapretControl Updater\n")
+            f.write("echo Waiting for application to exit...\n")
+            f.write("timeout /t 2 /nobreak > nul\n")
             
             if is_frozen and download_path.endswith(".exe"):
-                # Replace the EXE
-                f.write(f'move /y "{download_path}" "{app_path}"\n')
+                # Replace the EXE with a retry loop
+                f.write(":retry_move\n")
+                f.write(f'move /y "{download_path}" "{app_path}" > nul 2>&1\n')
+                f.write("if errorlevel 1 (\n")
+                f.write("    echo File is still locked, retrying in 1 second...\n")
+                f.write("    timeout /t 1 /nobreak > nul\n")
+                f.write("    goto retry_move\n")
+                f.write(")\n")
+                f.write("echo Update successful! Starting application...\n")
                 f.write(f'start "" "{app_path}"\n')
             else:
-                # If it's source (ZIP), we could extract it, but it's complex to do in a BAT
-                # without external tools. For now, we'll just open the folder and the download
+                # For source code (ZIP)
                 f.write(f'explorer /select,"{download_path}"\n')
-                f.write(f'echo Update downloaded to: {download_path}\n')
-                f.write(f'echo Please extract it manually to: {app_dir}\n')
-                f.write('pause\n')
+                f.write("echo --------------------------------------------------\n")
+                f.write(f"echo Update downloaded to: {download_path}\n")
+                f.write("echo Please extract the contents of the ZIP archive\n")
+                f.write(f"echo to the application folder: {os.path.dirname(app_path)}\n")
+                f.write("echo --------------------------------------------------\n")
+                f.write("pause\n")
             
             f.write("del %0\n")
         
         # Run the script and exit
-        subprocess.Popen([script_path], shell=True)
-        sys.exit(0)
+        subprocess.Popen([script_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        os._exit(0) # Use os._exit to force immediate exit without cleanup hooks that might delay closing
 
 class StrategyUpdater:
     def __init__(self):

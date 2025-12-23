@@ -4,7 +4,7 @@ from utils.paths import get_resource_path
 
 class ConfigManager:
     def __init__(self):
-        self.version = "1.1.2"
+        self.version = "1.1.3"
         self.config_path = os.path.join(os.environ.get('APPDATA', '.'), 'ZapretControl', 'config.json')
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         self.settings = {
