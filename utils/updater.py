@@ -2,12 +2,134 @@ import requests
 import os
 import shutil
 import urllib3
+import sys
+import subprocess
+import tempfile
+import zipfile
 from utils.logger import logger
 from core.config import config
 from utils.paths import get_resource_path
 
 # Disable SSL warnings for updates if needed
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+class AppUpdater:
+    def __init__(self):
+        self.repo_owner = "Fr1z1ck"
+        self.repo_name = "ZapretControl"
+        self.api_base = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}"
+        self.current_version = config.version
+
+    def check_for_updates(self):
+        """Checks for a new release on GitHub."""
+        try:
+            url = f"{self.api_base}/releases/latest"
+            response = requests.get(url, timeout=10, verify=False)
+            if response.status_code == 200:
+                data = response.json()
+                latest_version = data.get("tag_name", "").lstrip('v')
+                if not latest_version:
+                    return False, None, None
+
+                if self._is_newer(latest_version, self.current_version):
+                    return True, latest_version, data.get("html_url")
+            else:
+                logger.error(f"Failed to check for app updates: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Error checking for app updates: {e}")
+        return False, None, None
+
+    def _is_newer(self, latest, current):
+        try:
+            l_parts = [int(p) for p in latest.split('.')]
+            c_parts = [int(p) for p in current.split('.')]
+            return l_parts > c_parts
+        except:
+            return latest != current
+
+    def download_and_install(self, progress_callback=None):
+        """Downloads the latest release and prepares for installation."""
+        try:
+            url = f"{self.api_base}/releases/latest"
+            response = requests.get(url, timeout=10, verify=False)
+            if response.status_code != 200:
+                return False
+
+            data = response.json()
+            assets = data.get("assets", [])
+            
+            # Look for an EXE asset first if we are running as EXE
+            is_frozen = getattr(sys, 'frozen', False)
+            download_url = None
+            
+            if is_frozen:
+                for asset in assets:
+                    if asset.get("name", "").endswith(".exe"):
+                        download_url = asset.get("browser_download_url")
+                        break
+            
+            # If no EXE or not frozen, download source zip
+            if not download_url:
+                download_url = data.get("zipball_url")
+
+            if not download_url:
+                return False
+
+            # Download to temp file
+            if progress_callback: progress_callback(0, 100, "Скачивание...")
+            
+            temp_dir = tempfile.gettempdir()
+            download_path = os.path.join(temp_dir, "zapret_update.zip" if download_url.endswith(".zip") or "zipball" in download_url else "zapret_update.exe")
+            
+            res = requests.get(download_url, stream=True, verify=False)
+            total_size = int(res.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(download_path, 'wb') as f:
+                for chunk in res.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if progress_callback and total_size > 0:
+                            percent = int((downloaded / total_size) * 100)
+                            progress_callback(percent, 100, f"Скачивание: {percent}%")
+
+            if progress_callback: progress_callback(100, 100, "Подготовка к установке...")
+            
+            self._create_updater_script(download_path, is_frozen)
+            return True
+
+        except Exception as e:
+            logger.error(f"Error downloading update: {e}")
+            return False
+
+    def _create_updater_script(self, download_path, is_frozen):
+        """Creates a batch script to replace files and restart the app."""
+        app_path = os.path.abspath(sys.argv[0])
+        app_dir = os.path.dirname(app_path)
+        script_path = os.path.join(tempfile.gettempdir(), "zapret_updater.bat")
+        
+        with open(script_path, "w", encoding="cp1251") as f:
+            f.write("@echo off\n")
+            f.write("timeout /t 2 /nobreak > nul\n") # Wait for app to close
+            
+            if is_frozen and download_path.endswith(".exe"):
+                # Replace the EXE
+                f.write(f'move /y "{download_path}" "{app_path}"\n')
+                f.write(f'start "" "{app_path}"\n')
+            else:
+                # If it's source (ZIP), we could extract it, but it's complex to do in a BAT
+                # without external tools. For now, we'll just open the folder and the download
+                f.write(f'explorer /select,"{download_path}"\n')
+                f.write(f'echo Update downloaded to: {download_path}\n')
+                f.write(f'echo Please extract it manually to: {app_dir}\n')
+                f.write('pause\n')
+            
+            f.write("del %0\n")
+        
+        # Run the script and exit
+        subprocess.Popen([script_path], shell=True)
+        sys.exit(0)
 
 class StrategyUpdater:
     def __init__(self):
@@ -89,3 +211,4 @@ class StrategyUpdater:
         return False
 
 updater = StrategyUpdater()
+app_updater = AppUpdater()

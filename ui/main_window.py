@@ -12,7 +12,7 @@ from utils.autostart import set_autostart, is_autostart_enabled
 
 # Set AppUserModelID to show icon in taskbar on Windows
 try:
-    myappid = 'fr1z1ck.zapretcontrol.manager.1.1.0'
+    myappid = f'fr1z1ck.zapretcontrol.manager.{config.version}'
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except Exception:
     pass
@@ -46,17 +46,25 @@ class SettingsDialog(QDialog):
         updates_card.setObjectName("card")
         updates_layout = QVBoxLayout(updates_card)
         
-        updates_title = QLabel("ОБНОВЛЕНИЕ СТРАТЕГИЙ")
+        updates_title = QLabel("ОБНОВЛЕНИЯ")
         updates_title.setStyleSheet("font-weight: bold; color: #888; font-size: 11px;")
         updates_layout.addWidget(updates_title)
         
-        self.update_btn = QPushButton("Проверить обновления")
+        # Strategy Updates
+        self.update_btn = QPushButton("Проверить стратегии")
         self.update_btn.setObjectName("secondary_btn")
         self.update_btn.setIcon(QIcon(get_resource_path(os.path.join('assets', 'icons', 'activity.svg'))))
         self.update_btn.clicked.connect(self.on_check_update_clicked)
         updates_layout.addWidget(self.update_btn)
         
-        self.update_status_label = QLabel("Последнее обновление: " + (config.get("last_update_hash")[:7] if config.get("last_update_hash") else "неизвестно"))
+        # App Updates
+        self.app_update_btn = QPushButton("Проверить обновление приложения")
+        self.app_update_btn.setObjectName("secondary_btn")
+        self.app_update_btn.setIcon(QIcon(get_resource_path(os.path.join('assets', 'icons', 'settings.svg'))))
+        self.app_update_btn.clicked.connect(self.on_check_app_update_clicked)
+        updates_layout.addWidget(self.app_update_btn)
+        
+        self.update_status_label = QLabel("Стратегии: " + (config.get("last_update_hash")[:7] if config.get("last_update_hash") else "неизвестно"))
         self.update_status_label.setStyleSheet("color: #888; font-size: 11px;")
         updates_layout.addWidget(self.update_status_label)
         
@@ -108,7 +116,7 @@ class SettingsDialog(QDialog):
         about_title.setStyleSheet("font-weight: bold; color: #888; font-size: 11px;")
         about_layout.addWidget(about_title)
         
-        info_label = QLabel("Zapret Control Manager\nВерсия 1.1.0")
+        info_label = QLabel(f"Zapret Control Manager\nВерсия {config.version}")
         info_label.setStyleSheet("color: #DDD; font-size: 14px; margin-top: 5px;")
         about_layout.addWidget(info_label)
 
@@ -154,6 +162,51 @@ class SettingsDialog(QDialog):
         btns_layout.addWidget(close_btn)
         btns_layout.addWidget(self.save_btn)
         layout.addLayout(btns_layout)
+
+    def on_check_app_update_clicked(self):
+        self.app_update_btn.setEnabled(False)
+        self.app_update_btn.setText("Проверка...")
+        
+        self.check_app_thread = WorkerThread(self.parent().controller.check_for_app_updates)
+        self.check_app_thread.finished.connect(self.on_check_app_finished)
+        self.check_app_thread.start()
+
+    def on_check_app_finished(self, result, error):
+        self.app_update_btn.setEnabled(True)
+        self.app_update_btn.setText("Проверить обновление приложения")
+        
+        if error:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось проверить обновления: {error}")
+            return
+
+        has_update, latest_version, release_url = result
+        if has_update:
+            reply = QMessageBox.question(self, "Обновление доступно", 
+                                       f"Доступна новая версия {latest_version}.\nХотите обновить приложение сейчас?",
+                                       QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.app_update_btn.setText("Загрузка...")
+                self.progress_bar.setVisible(True)
+                self.progress_bar.setValue(0)
+                
+                self.download_app_thread = AppUpdateThread(self.parent().controller)
+                self.download_app_thread.progress.connect(self.on_app_update_progress)
+                self.download_app_thread.finished.connect(self.on_app_update_finished)
+                self.download_app_thread.start()
+        else:
+            QMessageBox.information(self, "Обновлений нет", "У вас установлена последняя версия приложения.")
+
+    def on_app_update_progress(self, current, total, status):
+        self.progress_bar.setMaximum(total)
+        self.progress_bar.setValue(current)
+        self.app_update_btn.setText(status)
+
+    def on_app_update_finished(self, success, error):
+        self.app_update_btn.setEnabled(True)
+        self.app_update_btn.setText("Проверить обновление приложения")
+        self.progress_bar.setVisible(False)
+        if not success:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось обновить приложение: {error}")
 
     def on_save_clicked(self):
         enabled = self.autostart_cb.isChecked()
@@ -227,6 +280,24 @@ class SettingsDialog(QDialog):
             QMessageBox.information(self, "Успех", "Стратегии успешно обновлены!")
         else:
             QMessageBox.warning(self, "Ошибка", f"Не удалось обновить стратегии: {error}")
+
+class AppUpdateThread(QThread):
+    progress = Signal(int, int, str)
+    finished = Signal(bool, str)
+
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+
+    def run(self):
+        try:
+            success = self.controller.download_app_update(self.on_progress)
+            self.finished.emit(success, "")
+        except Exception as e:
+            self.finished.emit(False, str(e))
+
+    def on_progress(self, current, total, status):
+        self.progress.emit(current, total, status)
 
 class UpdateThread(QThread):
     progress = Signal(int, int, str)

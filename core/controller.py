@@ -10,11 +10,12 @@ from core.services import get_services, get_strategies
 from core.config import config
 from utils.logger import logger
 from utils.paths import get_resource_path
-from utils.updater import updater
+from utils.updater import updater, app_updater
 
 class AppController:
     def __init__(self, base_path):
         self.base_path = base_path
+        self.version = config.version
         # Use the provided Zapret folder
         self.zapret_path = get_resource_path("Zapret")
         self.bin_path = os.path.join(self.zapret_path, "bin")
@@ -78,6 +79,12 @@ class AppController:
 
     def check_for_updates(self):
         return updater.check_for_updates()
+
+    def check_for_app_updates(self):
+        return app_updater.check_for_updates()
+
+    def download_app_update(self, progress_callback=None):
+        return app_updater.download_and_install(progress_callback)
 
     def update_strategies(self, latest_hash, progress_callback=None):
         success = updater.update_strategies(latest_hash, progress_callback)

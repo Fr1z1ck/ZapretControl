@@ -138,7 +138,7 @@ echo --------------------------------------------------
 echo:
 
 set "rtag="
-set /p rtag="Enter version tag (e.g. v1.1.0) or press Enter to cancel: "
+set /p rtag="Enter version tag (e.g. v1.1.2) or press Enter to cancel: "
 if "%rtag%"=="" goto CANCEL_RELEASE
 
 echo [+] Step 5: Checking if tag '%rtag%' already exists...
