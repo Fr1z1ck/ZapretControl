@@ -19,44 +19,68 @@ def parse_bat_strategy(file_path, bin_path):
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
         
-        # Remove line continuations (^)
+        # Remove line continuations (^) and normalize spaces
         content = content.replace('^\n', ' ').replace('^\r\n', ' ')
-        
-        # Look for winws.exe command line
-        # We want to find --filter-tcp=80,443 (or similar) and extract its desync args
-        # And --filter-udp=443 and extract its desync args
         
         tcp_args = ""
         udp_args = ""
         
-        # Heuristic: find the last --filter-tcp=80,443 or --filter-tcp=443
-        tcp_matches = re.findall(r'--filter-tcp=[0-9,]+.*?(?=(?:--new|$))', content)
+        # Use regex to find TCP filters that include ports 80 or 443
+        tcp_matches = re.findall(r'--filter-tcp=[0-9,]+.*?(?=(?:--new|$))', content, re.DOTALL)
+        
+        best_tcp_match = None
         for match in tcp_matches:
-            if '80' in match or '443' in match:
-                # Extract desync args: everything that is not a filter or hostlist
-                args = re.findall(r'--(dpi-desync|ip-id|wssize|desync|hostlist-exclude|ipset-exclude)[^ ]*(?:="[^"]*"|=[^ ]*)?', match)
-                # Actually, it's easier to just keep everything and then filter out what we don't want
-                # or just keep everything after the filter/hostlist
-                parts = match.split(' ')
-                extracted = []
-                for p in parts:
-                    if any(x in p for x in ['--dpi-desync', '--ip-id', '--wssize', '--desync-']):
-                        # Replace %BIN% with actual path
-                        p = p.replace('%BIN%', bin_path + '\\')
-                        extracted.append(p)
-                tcp_args = " ".join(extracted)
-                break
+            # Match ports 80 or 443 using word boundaries to avoid 8443
+            if re.search(r'\b(80|443)\b', match):
+                # Prefer matches that use list-google.txt for better YouTube compatibility
+                if 'list-google.txt' in match:
+                    best_tcp_match = match
+                    break
+                if best_tcp_match is None:
+                    best_tcp_match = match
+        
+        if best_tcp_match:
+            match = best_tcp_match
+            # Better extraction of arguments using regex to handle quoted values
+            # Extract everything that looks like an argument we care about
+            arg_patterns = [
+                r'--dpi-desync[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                r'--ip-id[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                r'--wssize[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                r'--desync-[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                r'--hostfakesplit-mod[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                r'--fake-tls-mod[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                r'--fake-quic-mod[^ ]*(?:="[^"]*"|=[^ ]*)?'
+            ]
+            
+            extracted = []
+            for pattern in arg_patterns:
+                found = re.findall(pattern, match)
+                for f_arg in found:
+                    # Replace %BIN% and clean up
+                    f_arg = f_arg.replace('%BIN%', bin_path + '\\').replace('^', '').strip()
+                    if f_arg:
+                        extracted.append(f_arg)
+            tcp_args = " ".join(extracted)
 
         # Same for UDP
-        udp_matches = re.findall(r'--filter-udp=[0-9,]+.*?(?=(?:--new|$))', content)
+        udp_matches = re.findall(r'--filter-udp=[0-9,]+.*?(?=(?:--new|$))', content, re.DOTALL)
         for match in udp_matches:
-            if '443' in match:
-                parts = match.split(' ')
+            if re.search(r'\b(443)\b', match):
                 extracted = []
-                for p in parts:
-                    if any(x in p for x in ['--dpi-desync', '--ip-id', '--wssize', '--desync-']):
-                        p = p.replace('%BIN%', bin_path + '\\')
-                        extracted.append(p)
+                arg_patterns = [
+                    r'--dpi-desync[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                    r'--ip-id[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                    r'--desync-[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                    r'--fake-quic[^ ]*(?:="[^"]*"|=[^ ]*)?',
+                    r'--fake-quic-mod[^ ]*(?:="[^"]*"|=[^ ]*)?'
+                ]
+                for pattern in arg_patterns:
+                    found = re.findall(pattern, match)
+                    for f_arg in found:
+                        f_arg = f_arg.replace('%BIN%', bin_path + '\\').replace('^', '').strip()
+                        if f_arg:
+                            extracted.append(f_arg)
                 udp_args = " ".join(extracted)
                 break
         

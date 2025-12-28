@@ -219,11 +219,20 @@ class StrategyUpdater:
             else:
                 logger.warning(f"Failed to get lists folder contents: {lists_response.status_code}")
 
+            # 3. Update .service files
+            service_folder_url = f"{self.api_base}/contents/.service?ref={ref}"
+            service_response = self.session.get(service_folder_url, timeout=10, verify=False)
+            service_files = []
+            if service_response.status_code == 200:
+                service_files = service_response.json()
+            
             all_files = []
             for f in bat_files:
                 all_files.append((f, self.zapret_path))
             for f in list_files:
                 all_files.append((f, os.path.join(self.zapret_path, "lists")))
+            for f in service_files:
+                all_files.append((f, os.path.join(self.zapret_path, ".service")))
 
             total_files = len(all_files)
             if total_files == 0:
@@ -242,8 +251,10 @@ class StrategyUpdater:
                 # Construct correct download URL based on folder
                 if target_dir == self.zapret_path:
                     download_url = f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/{ref}/{name}"
-                else:
+                elif target_dir.endswith("lists"):
                     download_url = f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/{ref}/lists/{name}"
+                else: # .service
+                    download_url = f"https://raw.githubusercontent.com/{self.repo_owner}/{self.repo_name}/{ref}/.service/{name}"
                 
                 target_path = os.path.join(target_dir, name)
                 
