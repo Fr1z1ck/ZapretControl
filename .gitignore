@@ -10,7 +10,7 @@ env/
 # Build and Distribution
 build/
 dist/
-*.spec
+# *.spec is included to allow automated builds via .bat
 
 # Logs
 logs/
