@@ -4,8 +4,13 @@ block_cipher = None
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
-    binaries=[],
+    pathex=[r'C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0'],
+    binaries=[
+        (r'C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\python313.dll', '.'),
+        (r'C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\python3.dll', '.'),
+        (r'C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\vcruntime140.dll', '.'),
+        (r'C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\vcruntime140_1.dll', '.'),
+    ],
     datas=[
         ('assets', 'assets'),
         ('ui', 'ui'),
