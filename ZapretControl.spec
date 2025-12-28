@@ -9,6 +9,7 @@ a = Analysis(
     datas=[
         ('assets', 'assets'),
         ('ui', 'ui'),
+        ('Zapret', 'Zapret'),
     ],
     hiddenimports=[
         'PySide6.QtCore',
