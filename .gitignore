@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# Build and Distribution
+build/
+dist/
+*.spec
+
+# Logs
+logs/
+*.log
+
+# Backups and temporary files
+*.bak
+*.tmp
+*.old
+
+# Project specific
+# Zapret/bin/ is now handled by updater, keep it out of git to avoid binary bloat
+Zapret/bin/
+Zapret/utils/targets.txt
+Zapret/utils/GameFilter
+Zapret/.service/
+Zapret/lists/
+Zapret/*.bat
+!Zapret/service.bat
+Zapret/zapret_settings.json
+
+# User specific config (APPDATA used in code, but just in case)
+config.json
